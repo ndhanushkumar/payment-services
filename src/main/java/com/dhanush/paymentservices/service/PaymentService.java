@@ -1,0 +1,74 @@
+package com.dhanush.paymentservices.service;
+
+import com.dhanush.paymentservices.Entity.Order;
+import com.dhanush.paymentservices.exception.PaymentException;
+import com.dhanush.paymentservices.modal.PaymentRequest;
+import com.dhanush.paymentservices.modal.PaymentResponse;
+import com.dhanush.paymentservices.modal.Status;
+import com.dhanush.paymentservices.repository.OrderRepository;
+import com.dhanush.paymentservices.util.UtilFunctions;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+
+import java.time.LocalDateTime;
+
+@Service
+public class PaymentService {
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private ValidateCreditCardService validateCreditCardService;
+
+    public Mono<PaymentResponse> submitPayment(PaymentRequest paymentRequest){
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+       return validateCreditCardService.validateCardDetails(paymentRequest.getCardDetails())
+               .flux()
+                       .flatMap(status->
+                                orderRepository.findByCartId(paymentRequest.getCartId()))
+               .next()
+               .map(order -> {
+                   try {
+                       return submitPaymentImpl(order,paymentRequest);
+                   } catch (PaymentException e) {
+                       throw new RuntimeException(e);
+                   }
+               })
+               .flatMap(orderRepository::save)
+               .map(UtilFunctions::toDto)
+               .switchIfEmpty(Mono.error(new PaymentException("Order Not Found")));
+ }
+ public Order submitPaymentImpl(Order order,PaymentRequest paymentRequest) throws PaymentException {
+        if(order.getBalanceAmount() < paymentRequest.getPaymentAmount()){
+
+
+            throw new PaymentException("Payment Amount "+paymentRequest.getPaymentAmount()+ " exceeds the balance "+ order.getBalanceAmount() );
+
+
+        }
+
+
+        var balance=order.getBalanceAmount() - paymentRequest.getPaymentAmount();
+        if(balance==0.0) {order.setPaymentStatus(Status.SUCCESS);
+        order.setOrderStatus(Status.ORDERED);
+        order.setOrderDateTime(LocalDateTime.now());
+        }
+        order.setBalanceAmount(balance);
+        return order;
+}
+
+
+    public Mono<Status> voidPaymentImpl(String orderId) {
+       return orderRepository.findById(orderId)
+                .flatMap(o-> {
+                    o.setPaymentStatus(Status.VOID);
+                    return orderRepository.save(o);
+                }).map(Order::getPaymentStatus);
+    }
+}
