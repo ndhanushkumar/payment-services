@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("payment-services")
 @CrossOrigin
 public class PaymentController {
 

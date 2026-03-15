@@ -28,6 +28,7 @@ public class Order {
     private Double totalAmount;
     private Double balanceAmount;
     private List<CartItem> orderItems;
+    private List<PaymentDetail> paymentDetails;
     private LocalDateTime orderDateTime;
 
 }
